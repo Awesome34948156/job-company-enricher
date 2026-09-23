@@ -12,7 +12,7 @@ import * as linkedin from './adapters/linkedin.js';
 import * as indeed from './adapters/indeed.js';
 import * as jobsdb from './adapters/jobsdb.js';
 import * as glassdoor from './adapters/glassdoor.js';
-import { sameCompany, looseKey } from '../../shared/normalize.js';
+import { sameCompany, looseKey, isPlausibleCompanyName } from '../../shared/normalize.js';
 
 const ADAPTERS = [linkedin, indeed, jobsdb, glassdoor];
 
@@ -88,15 +88,23 @@ export function extractCompany(doc = document, url = new URL(location.href)) {
   }
 
   // ---- layer 4: <title> parsing (also an independent cross-check on layer 1)
+  //
+  // Skipped outright when the adapter says the title describes the page rather
+  // than the posting — a search-results title names the query, not the employer.
+  // On JobsDB that title ends in a listing period, and reading it is how a date
+  // became a company name.
+  const titleReliable = adapter?.titleIsReliable ? adapter.titleIsReliable(url) : true;
   let titleCandidates = [];
-  try {
-    const t = extractFromTitle(doc);
-    titleCandidates = t?.candidates || [];
-    for (const name of titleCandidates) {
-      found.push({ name, source: 'title', confidence: CONF.title });
+  if (titleReliable) {
+    try {
+      const t = extractFromTitle(doc);
+      titleCandidates = t?.candidates || [];
+      for (const name of titleCandidates) {
+        found.push({ name, source: 'title', confidence: CONF.title });
+      }
+    } catch (e) {
+      console.debug('[JCE] title layer failed', e);
     }
-  } catch (e) {
-    console.debug('[JCE] title layer failed', e);
   }
 
   const jobTitle = found.find((f) => f.jobTitle)?.jobTitle
@@ -109,20 +117,31 @@ export function extractCompany(doc = document, url = new URL(location.href)) {
   // ---- layer 5: scored-DOM heuristic (last resort; top 3)
   let heuristic = [];
   try {
-    heuristic = heuristicCandidates(doc, jobTitle);
+    // Filtered here as well as in `add` because the ambiguity check below reads
+    // the top two directly.
+    heuristic = heuristicCandidates(doc, jobTitle)
+      .filter((h) => isPlausibleCompanyName(h.text));
   } catch (e) {
     console.debug('[JCE] heuristic layer failed', e);
   }
 
-  // Highest-confidence non-empty name wins.
-  found.sort((a, b) => b.confidence - a.confidence);
-  const winner = found[0] || null;
+  // Highest-confidence *plausible* name wins.
+  //
+  // The plausibility gate is applied once, here, rather than inside each layer:
+  // junk arrives by every route — a selector, a title regex, the DOM heuristic —
+  // so one filter in front of the sort covers all of them. Filtering before the
+  // sort rather than after is the point: a rejected name must not merely lose to
+  // the winner, it must not be promoted into its place.
+  const usable = found.filter((f) => isPlausibleCompanyName(f.name));
+  usable.sort((a, b) => b.confidence - a.confidence);
+  const winner = usable[0] || null;
 
   // Build the deduped candidate list: winner first, then heuristic suggestions,
   // then any remaining cross-source names.
   const candidates = [];
   const seen = new Set();
   const add = (name, source, confidence) => {
+    if (!isPlausibleCompanyName(name)) return;
     const k = looseKey(name);
     if (!k || seen.has(k)) return;
     // Don't offer variants of a name we already have.
@@ -133,7 +152,7 @@ export function extractCompany(doc = document, url = new URL(location.href)) {
 
   if (winner) add(winner.name, winner.source, winner.confidence);
   for (const h of heuristic) add(h.text, 'heuristic', CONF.heuristic);
-  for (const f of found) add(f.name, f.source, f.confidence);
+  for (const f of usable) add(f.name, f.source, f.confidence);
 
   // Ambiguity: the two best heuristic candidates are effectively tied.
   let ambiguous = false;

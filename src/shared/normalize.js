@@ -69,6 +69,87 @@ export function strictKey(raw) {
   return normalizeCompanyName(raw);
 }
 
+const MONTHS =
+  'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+
+/**
+ * Strings that are a point in time rather than an employer.
+ *
+ * The one that shipped: JobsDB stamps its search-results `<title>` with the
+ * listing period — "Data Centre Jobs in Sha Tin District - Sep 2026 | Jobsdb" —
+ * the title pattern read the last dash-separated segment, and "Sep 2026" went
+ * out as the company name to search for. The card dutifully reported that no
+ * search result identifies "Sep 2026" as an employer, which is true and useless.
+ */
+const DATE_LIKE = [
+  // "Sep 2026", "September-2026"
+  new RegExp(`^(?:${MONTHS})\\.?[\\s,/-]*\\d{2,4}$`, 'i'),
+  // "2026 Sep"
+  new RegExp(`^\\d{2,4}[\\s,/-]*(?:${MONTHS})\\.?$`, 'i'),
+  // "Sep - Oct 2026", "Sep 2026 - Oct 2026" — the listing window JobsDB means
+  new RegExp(`^(?:${MONTHS})\\.?[\\s,/-]*(?:\\d{2,4})?\\s*[-–—]\\s*(?:(?:${MONTHS})\\.?\\s*)?\\d{2,4}$`, 'i'),
+  // "2026-09-23", "23/09/2026" — a full date
+  /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/,
+  // "09-2026", "2026/09" — a month and a year, either way round
+  /^\d{1,2}[-/.]\d{4}$/,
+  /^\d{4}[-/.]\d{1,2}$/,
+  // "30d+ ago", "Posted 2 weeks ago" — the relative stamps both boards use
+  /^(?:posted\s+)?\d+\s*(?:d|h|w|mo|y|days?|hours?|weeks?|months?|years?|mins?|minutes?)s?\s*\+?\s*ago$/i,
+  /^(?:just\s+)?posted$/i,
+];
+
+/**
+ * Amounts — the other thing a job page puts where a company name goes.
+ *
+ * "HK$370,000-490,000/year" is in the posting body the DOM heuristic walks, and a
+ * shorter amount clears its 80-character ceiling. Both rules are deliberately
+ * narrow: the anchor test is symbol *and* digit, so an exotic name containing a
+ * currency sign with no number in it is left alone, and the second rule demands
+ * thousands separators, which is what keeps "3M" a company rather than a sum.
+ */
+const MONEY_LIKE = [
+  // A currency symbol *and* a number, in either order: "HK$370,000", "$1.2M"
+  /^(?=.*[$€£¥])(?=.*\d)/,
+  // Thousands-separated, optional magnitude and currency code: "370,000 HKD"
+  /^\s*\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?\s*(?:k|m|bn)?\s*(?:hkd|usd|rmb|cny|eur|gbp)?\s*$/i,
+];
+
+export function looksLikeAmount(raw) {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return false;
+  return MONEY_LIKE.some((re) => re.test(s));
+}
+
+export function looksLikeDate(raw) {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return false;
+  if (/^\d{4}$/.test(s)) return true; // a bare year
+  return DATE_LIKE.some((re) => re.test(s));
+}
+
+/**
+ * Could this string name an employer? The gate in front of every accept path.
+ *
+ * Kept deliberately loose — it rejects only what is *certainly* not a name, so
+ * it can sit in front of the precedence sort without second-guessing real
+ * companies. The cost of a false rejection is an editable empty field, one
+ * keystroke from correct; the cost of a false accept is a confident wrong answer
+ * and an API call spent on it. Those are not symmetric, so this errs toward
+ * rejecting.
+ *
+ * Applied to every layer rather than at each layer's own parse step, because the
+ * same junk reaches the adapter, the title parser and the DOM heuristic alike.
+ */
+export function isPlausibleCompanyName(raw) {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  if (s.length < 2) return false;
+  // Must carry a word character. Keeps out bare codes and counts — "2026", "30".
+  if (!/[a-z㐀-鿿]/i.test(s)) return false;
+  if (looksLikeDate(s)) return false;
+  if (looksLikeAmount(s)) return false;
+  return true;
+}
+
 /**
  * Significant tokens for name↔name agreement scoring. Latin names split on
  * whitespace; CJK names split per character (no word boundaries available)

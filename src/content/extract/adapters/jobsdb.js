@@ -68,6 +68,23 @@ function isSearchShape(url) {
 }
 
 /**
+ * Whether the document `<title>` may be read for an employer name on this shape.
+ *
+ * On the search shape it may not. That title describes the *search*, and its
+ * trailing segment is the listing period:
+ *
+ *   Data Centre Jobs in Sha Tin District - Sep 2026 | Jobsdb
+ *
+ * The title pattern takes the last dash-separated segment before the board
+ * suffix, so reading it here yields a date — this is the bug that put "Sep 2026"
+ * on the card. `/job/<id>` is the opposite case: one posting, one employer, and
+ * the title names it.
+ */
+export function titleIsReliable(url) {
+  return !isSearchShape(url);
+}
+
+/**
  * The tightest ancestor of `titleEl` that also holds a company hook — the pane,
  * rather than the page or a card.
  *

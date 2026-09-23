@@ -168,6 +168,37 @@ cached data actually describes.
 too conservative here is one extra cheap lookup; the cost of being too aggressive is showing one
 company's data under another company's name. Those aren't symmetric.
 
+### A name is checked for plausibility, not just for confidence
+
+Precedence answers *which layer to trust*. It does not answer *whether the string is a name at
+all* — and conflating those two questions is what put **`Sep 2026`** on the card as a company.
+
+JobsDB stamps its search-results `<title>` with the listing period:
+
+```
+Data Centre Jobs in Sha Tin District - Sep 2026 | Jobsdb
+```
+
+The title pattern takes the last dash-separated segment, so it read a date as the employer. Every
+layer above it had stayed silent — which is precisely when the title layer speaks — and nothing
+objected, because the string was the right *length*, in the right *place*, and only its *meaning*
+was wrong. A confidently wrong name is also an API call spent on a nonsense query.
+
+`isPlausibleCompanyName()` in [src/shared/normalize.js](src/shared/normalize.js) now sits in front
+of the precedence sort and rejects what is certainly not an employer: dates (`Sep 2026`,
+`2026-09-23`, `30d+ ago`), amounts (`HK$370,000`, `370,000 HKD`), and bare numbers. It is applied
+**once, before the sort**, rather than inside each layer — a rejected name must not merely lose to
+the winner, it must not be *promoted* into its place. Two consequences follow:
+
+- A **JobsDB search page never consults the title layer.** That title describes the search, not
+  the posting; an adapter declares this with the optional `titleIsReliable(url)` hook.
+- Extraction **retries for up to 4 s when a pass finds no name.** JobsDB renders the posting pane
+  client-side, so the first pass can read a DOM with no advertiser in it — the emptiness that made
+  a weak fallback reachable in the first place. A page that yields a name never pays this.
+
+The costs aren't symmetric, so the gate errs toward rejecting: a false rejection leaves an editable
+empty field, one keystroke from correct, while a false accept is a confident wrong answer.
+
 ### The ticker is verified, never trusted
 
 The stock code is the field most likely to be confidently wrong: a pattern-matched 4-digit number
@@ -232,6 +263,20 @@ export function extract(doc = document) {
 `shared.js` gives you `firstText(doc, selectors, {max})` (first non-empty match, truncated),
 `companyLinkText`, `nameFromCompanySlug`, and `stripBoardSuffix`.
 
+`extract` is called as `extract(doc, url)` — JobsDB reads the URL to scope a search page to the
+selected posting's pane. One further export is optional:
+
+```js
+// Return false when <title> describes the page rather than the posting, so the
+// title layer is skipped for this shape. Defaults to true when omitted.
+export function titleIsReliable(url) {
+  return !isSearchShape(url);
+}
+```
+
+Only JobsDB needs it. Add it if your board puts anything other than the employer in the page
+title — a search term, a location, a date.
+
 **2. Register it** in `src/content/extract/index.js`:
 
 ```js
@@ -264,7 +309,7 @@ every few months. JSON-LD usually wins anyway, and the editable name field is th
 | What | Where |
 |---|---|
 | Service worker | `chrome://extensions` → the *service worker* link. Reads "inactive" when idle — click to wake. |
-| Content script | The page's own DevTools console, filtered to `[JCE]`. |
+| Content script | The page's own DevTools console, filtered to `[JCE]`. Off by default — run `window.__jce_debug = true` in that console to enable it without editing the source. |
 | Storage | SW console → `await chrome.storage.local.get(null)` |
 | Errors | Options page → **Diagnostics** (last 20, exportable as JSON with keys redacted) |
 
@@ -291,6 +336,11 @@ indistinguishable without the response body.
   and Diagnostics must gain a matching row. Never "Something went wrong."
 - **Gate:** hand-edit a cached record to a wrong stock code. The card must drop to "unconfirmed",
   not display it.
+- **Which layer won:** set `window.__jce_debug = true`, then load a job page. The console prints
+  `<name> | <source> | <confidence>`, e.g. `Rm Staffing Bv | adapter:jobsdb | 0.85`. Read it
+  whenever a name looks wrong — the source is the whole diagnosis. A `jsonld` or `adapter` source is
+  a real DOM hit; `title` means every stronger layer was silent, and `heuristic` should be rare
+  enough to be worth a look on its own.
 
 ---
 
@@ -334,6 +384,11 @@ The 19-assertion gate suite also pins the precision side: wrong tickers that use
 Static checks: all 29 modules parse clean under JavaScriptCore, a lexical balance checker reports
 0 problems, and a 67-assertion logic suite covers name normalization, ticker verification and
 padding, schema repair and coercion, and context trimming.
+
+`test/extraction.js` covers extraction and is committed: run it from the repo root with
+`osascript -l JavaScript test/extraction.js`. It pins the name-plausibility gate and the JobsDB
+title-shape rule — including the exact search-page title that shipped `Sep 2026`, so the pattern
+that caused it stays documented as the thing under test rather than as a story in a commit message.
 
 ### Three bugs worth knowing about
 

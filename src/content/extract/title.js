@@ -2,6 +2,8 @@
 // og:title. Refactor-resistant — the document title changes far less often than
 // the DOM around it. Also serves as an independent cross-check on layer 1.
 
+import { isPlausibleCompanyName } from '../../shared/normalize.js';
+
 const NOISE = /^(linkedin|indeed|jobsdb|glassdoor|jobs?|careers?|hiring|job search)\b/i;
 
 /** Ordered patterns; first capture group is the company name. */
@@ -22,7 +24,10 @@ function candidatesFromString(s) {
     const m = s.match(re);
     if (m?.[1]) {
       const cleaned = m[1].replace(/\s+/g, ' ').trim().replace(/[.,;:]+$/, '');
-      if (cleaned && cleaned.length >= 2 && !NOISE.test(cleaned)) out.push(cleaned);
+      // Same gate the precedence sort applies, but applied here too: a rejected
+      // candidate would otherwise still reach the disagreement signal, which
+      // reads this list rather than the vetted one.
+      if (isPlausibleCompanyName(cleaned) && !NOISE.test(cleaned)) out.push(cleaned);
     }
   }
   return out;
