@@ -68,13 +68,16 @@ const NAME_POLL_MS = 250;
 /**
  * Poll until an employer name appears, or give up.
  *
- * Extraction is triggered when the SPA settles, which is not the same moment the
- * posting is painted — JobsDB renders the selected posting's pane client-side. A
- * pass that lands early reads a DOM with no advertiser in it, and that emptiness
- * is what made a weak layer reachable: the title layer answered with a date.
+ * A hedge, not a fix. Extraction fires when the SPA settles, which need not be
+ * the moment the pane is painted — JobsDB renders the selected posting
+ * client-side — so a pass can read a DOM with no advertiser in it yet.
  *
- * Re-running the whole pipeline is the point — the retry has to be able to find
- * the adapter-layer name the first pass missed. Returns null if none arrives.
+ * That cause is unconfirmed. The empty cards that prompted this turned out to be
+ * tabs opened before the extension loaded, with no content script injected at
+ * all, which no retry can help with. It stays because it is cheap and bounded:
+ * it runs only on a pass that found nothing, so a named page never pays it, and
+ * the plausibility gate means an early pass now costs a blank field rather than
+ * a wrong name. Returns null if no name arrives.
  */
 async function waitForName() {
   const deadline = Date.now() + NAME_WAIT_MS;

@@ -193,8 +193,10 @@ the winner, it must not be *promoted* into its place. Two consequences follow:
 - A **JobsDB search page never consults the title layer.** That title describes the search, not
   the posting; an adapter declares this with the optional `titleIsReliable(url)` hook.
 - Extraction **retries for up to 4 s when a pass finds no name.** JobsDB renders the posting pane
-  client-side, so the first pass can read a DOM with no advertiser in it — the emptiness that made
-  a weak fallback reachable in the first place. A page that yields a name never pays this.
+  client-side, so a pass can read a DOM with no advertiser in it yet. That cause is unconfirmed: the
+  empty cards that prompted it turned out to be tabs opened before the extension loaded, with no
+  content script injected at all, which no retry can help with. It is kept because it is bounded and
+  a page that yields a name never pays it.
 
 The costs aren't symmetric, so the gate errs toward rejecting: a false rejection leaves an editable
 empty field, one keystroke from correct, while a false accept is a confident wrong answer.
@@ -263,8 +265,9 @@ export function extract(doc = document) {
 `shared.js` gives you `firstText(doc, selectors, {max})` (first non-empty match, truncated),
 `companyLinkText`, `nameFromCompanySlug`, and `stripBoardSuffix`.
 
-`extract` is called as `extract(doc, url)` — JobsDB reads the URL to scope a search page to the
-selected posting's pane. One further export is optional:
+`extract` is called as `extract(doc, url)` — JobsDB reads the URL to scope the two split-view shapes
+to the selected posting's pane, and exports `POSTING_PATH`, the set of path shapes that serve a
+posting. One further export is optional:
 
 ```js
 // Return false when <title> describes the page rather than the posting, so the
@@ -389,6 +392,8 @@ padding, schema repair and coercion, and context trimming.
 `osascript -l JavaScript test/extraction.js`. It pins the name-plausibility gate and the JobsDB
 title-shape rule — including the exact search-page title that shipped `Sep 2026`, so the pattern
 that caused it stays documented as the thing under test rather than as a story in a commit message.
+It also pins `POSTING_PATH`: `/job/<id>`, `/jobs/<slug>`, and the `/<Company>-jobs` slug that a single
+`\/jobs?\//` used to miss.
 
 ### Three bugs worth knowing about
 
@@ -433,6 +438,6 @@ shown wrong.
 If you change the dataset URL, check the field names first — a silent mismatch here does not throw,
 it just makes the headline feature answer "no" for everyone.
 
-Exercised against live pages: the card on a JobsDB posting (both URL shapes) and SPA navigation
+Exercised against live pages: the card on a JobsDB posting (all three URL shapes) and SPA navigation
 between postings. Not yet exercised: the error paths (revoked key, rate limit, budget exhausted)
 and LinkedIn/Indeed/Glassdoor, which have never been loaded by a real browser.

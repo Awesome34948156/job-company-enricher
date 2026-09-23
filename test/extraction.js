@@ -30,11 +30,11 @@ const SOURCES = [
 
 const api = new Function(
   SOURCES.map((p) => strip(read(p))).join('\n') + '\n' +
-  'return { isPlausibleCompanyName, looksLikeDate, looksLikeAmount, candidatesFromString, PATTERNS, titleIsReliable };'
+  'return { isPlausibleCompanyName, looksLikeDate, looksLikeAmount, candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH };'
 )();
 
 const { isPlausibleCompanyName, looksLikeDate, looksLikeAmount,
-        candidatesFromString, PATTERNS, titleIsReliable } = api;
+        candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH } = api;
 
 let fails = 0;
 let total = 0;
@@ -81,6 +81,19 @@ all(['Rm Staffing Bv', 'Tai Hing Worldwide Development Ltd', 'Tencent Holdings L
 
 // ---------- junk ----------
 all(['2026', '30', '', ' ', '12345', '$'], (s) => !isPlausibleCompanyName(s), 'junk rejected');
+
+// ---------- which paths serve a posting ----------
+//
+// `/jobs/` has a trailing slash and the company job list is a slug ending in
+// `-jobs` with none, so one `\/jobs?\//` covered the first and missed the second
+// entirely. The pane was on screen with its hooks populated and the card still
+// asked for a name it could have read — confirmed against the live page.
+all(['/job/74221881', '/jobs/in-Sha-Tin-District', '/jobs/in-Sha-Tin-District/',
+     '/Advanced-Biomedical-Instrumentation-Centre-Limited-jobs'],
+    (p) => POSTING_PATH.test(p), 'path serves a posting');
+all(['/', '/jobs', '/job', '/companies/Advanced-Biomedical', '/career-advice',
+     '/Advanced-Biomedical-jobs-old'],
+    (p) => !POSTING_PATH.test(p), 'path does not serve a posting');
 
 // ---------- title reliability by URL shape ----------
 const U = (href) => {

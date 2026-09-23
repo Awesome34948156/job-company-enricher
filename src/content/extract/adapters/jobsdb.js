@@ -5,21 +5,24 @@
 // the best adapter to test against — if extraction fails here, the bug is in
 // the extractor logic, not in rotted selectors.
 //
-// A posting is served under two different URL shapes:
+// A posting is served under three URL shapes:
 //
-//   /job/74221881                            the standalone posting
-//   /jobs/in-Sha-Tin-District?jobId=74221881 the search page, which renders the
-//                                            selected posting in a pane beside
-//                                            the results list
+//   /job/74221881                               the standalone posting
+//   /jobs/in-Sha-Tin-District?jobId=74221881    the search page, which renders
+//                                               the selected posting in a pane
+//                                               beside the results list
+//   /Some-Company-Limited-jobs?jobId=74221881   a company's own job list, which
+//                                               uses that same pane
 //
-// The second is how you reach a posting by browsing, so it has to work. Its
-// hazard is document order: the results list comes *first* and every card in it
-// names a different employer, so a document-wide query returns whichever company
-// happens to be first in the left column — a confidently wrong answer.
+// The last two are how you reach a posting by browsing, so they have to work.
+// Their hazard is document order: the results list comes *first* and every card
+// in it names a different employer, so a document-wide query returns whichever
+// company happens to be first in the left column — a confidently wrong answer.
 //
-// The fix is scoped to that shape only. `/job/<id>` carries a single posting, so
-// the document-wide query has always been right there and is left untouched;
-// running the pane search on it could only add a way to get it wrong.
+// The pane search is scoped to those two shapes only. `/job/<id>` carries a
+// single posting, so the document-wide query has always been right there and is
+// left untouched; running the pane search on it could only add a way to get it
+// wrong.
 
 import { firstText } from './shared.js';
 
@@ -56,9 +59,20 @@ const LOCATION_SEL = [
 /** Hops to walk up before giving up on finding a pane. */
 const MAX_HOPS = 12;
 
+/**
+ * Path shapes that serve a posting.
+ *
+ * `/jobs/` carries a trailing slash; the company job list is a slug ending in
+ * `-jobs` with none, so the two need separate alternatives. A single `\/jobs?\//`
+ * covered only the first, and the second fell through to no adapter at all —
+ * the pane was on screen with its hooks populated, and the card still asked the
+ * user for a name it could have read.
+ */
+export const POSTING_PATH = /\/job\/|\/jobs\/|-jobs$/;
+
 export function match(url) {
-  // `/jobs/…` as well as `/job/…` — the search page serves a posting too.
-  return /(^|\.)jobsdb\.com$/.test(location.hostname) && /\/jobs?\//.test(url.pathname);
+  // `/jobs/…` and `/<Company>-jobs` as well as `/job/…` — all three serve a posting.
+  return /(^|\.)jobsdb\.com$/.test(location.hostname) && POSTING_PATH.test(url.pathname);
 }
 
 /** The search-page shape: a posting selected inside a list, not a page of its own. */
