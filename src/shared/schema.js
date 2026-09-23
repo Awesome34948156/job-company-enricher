@@ -12,7 +12,7 @@ import { padHkCode } from './normalize.js';
 export const COMPANY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['companyName', 'matchedEntity', 'hkListing', 'profile', 'reputation', 'sources', 'notes'],
+  required: ['companyName', 'matchedEntity', 'hkListing', 'profile', 'reputation', 'sources'],
   properties: {
     companyName: { type: 'string', description: 'Best canonical name for the employer.' },
     matchedEntity: {
@@ -86,10 +86,16 @@ export const COMPANY_SCHEMA = {
       },
     },
 
-    notes: {
-      type: ['string', 'null'],
-      description: 'Ambiguity warnings, e.g. "name matches both an HK-listed parent and an unrelated SG firm". null if none.',
-    },
+    // `notes` is deliberately absent. It used to be a model-authored field, and
+    // the model wrote essays in it — every lookup ended in an orange paragraph of
+    // reasoning ("Results describe the employer as...", "so hkListing is left null
+    // rather than guessed") that the card rendered verbatim. It restated fields
+    // that were already on screen and pushed the actual report off the fold.
+    //
+    // The reason it existed — flagging a parent company versus the employer — is
+    // carried by matchedEntity, which drives its own short line. What is left of
+    // `notes` is machine-written only: the repair suffix below and the ticker
+    // verification warning, both of which stay.
   },
 
   $defs: {
@@ -289,7 +295,10 @@ export function validateReport(raw) {
       confidence: confidence(rep.confidence),
     },
     sources,
-    notes: str(r.notes),
+    // Discarded, not carried: the model is no longer asked for `notes`, and one
+    // that volunteers it anyway must not reach the card. Everything below this
+    // line is machine-written.
+    notes: null,
   };
 
   if (repairs.length) {

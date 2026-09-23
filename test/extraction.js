@@ -24,17 +24,18 @@ const strip = (src) => src.replace(/^import .*?;\s*$/gm, '').replace(/^export /g
 
 const SOURCES = [
   'src/shared/normalize.js',
+  'src/shared/schema.js',
   'src/content/extract/title.js',
   'src/content/extract/adapters/jobsdb.js',
 ];
 
 const api = new Function(
   SOURCES.map((p) => strip(read(p))).join('\n') + '\n' +
-  'return { isPlausibleCompanyName, looksLikeDate, looksLikeAmount, candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH };'
+  'return { isPlausibleCompanyName, looksLikeDate, looksLikeAmount, candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH, validateReport };'
 )();
 
 const { isPlausibleCompanyName, looksLikeDate, looksLikeAmount,
-        candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH } = api;
+        candidatesFromString, PATTERNS, titleIsReliable, POSTING_PATH, validateReport } = api;
 
 let fails = 0;
 let total = 0;
@@ -78,6 +79,37 @@ all(['Rm Staffing Bv', 'Tai Hing Worldwide Development Ltd', 'Tencent Holdings L
      'K & P International Holdings Limited', 'S E A Holdings Limited', '3M', '7-Eleven',
      'Bank of China (Hong Kong)', 'ABC Limited', 'May Chow Limited', '1,000 Islands Ltd'],
     (s) => !looksLikeDate(s) && !looksLikeAmount(s) && isPlausibleCompanyName(s), 'name survives');
+
+// ---------- the model does not get to write on the card ----------
+//
+// `notes` was a model-authored field and the model wrote essays in it: every
+// lookup ended in an orange paragraph restating the fields already on screen.
+// It is now machine-only. The field still carries the repair suffix, so the two
+// halves are asserted separately — dropping the model's prose must not drop the
+// diagnostics with it.
+const MODEL_ESSAY =
+  'Results describe the employer as the Hong Kong-based mobile game developer '
+  + "commonly known as 'Madhead' (developer of 神魔之塔), with jobs in Sha Tin "
+  + 'District; no HKEX stock code appears, so hkListing is left null rather than guessed.';
+
+const clean = validateReport({
+  companyName: 'Madhead', matchedEntity: null,
+  hkListing: {}, profile: {}, reputation: {}, sources: [],
+  notes: MODEL_ESSAY,
+});
+eq(clean.report.notes, null, "a model-authored notes field is dropped");
+ok(!String(clean.report.notes || '').includes('Madhead'),
+   'the essay text does not survive into the report');
+
+// A repair must still reach the card, even though the model's prose no longer does.
+// `hkListing: null` is the trigger — a non-object there is a repair, where `{}` is not.
+const repaired = validateReport({
+  companyName: 'Madhead', hkListing: null, profile: {}, reputation: {}, sources: [],
+  notes: MODEL_ESSAY,
+});
+ok(repaired.repairs.length > 0, 'the malformed payload is still reported as repaired');
+ok(/^\[repaired: /.test(repaired.report.notes || ''),
+   'repairs still land in notes, now without the prose', JSON.stringify(repaired.report.notes));
 
 // ---------- junk ----------
 all(['2026', '30', '', ' ', '12345', '$'], (s) => !isPlausibleCompanyName(s), 'junk rejected');
