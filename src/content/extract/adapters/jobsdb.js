@@ -62,13 +62,18 @@ const MAX_HOPS = 12;
 /**
  * Path shapes that serve a posting.
  *
- * `/jobs/` carries a trailing slash; the company job list is a slug ending in
- * `-jobs` with none, so the two need separate alternatives. A single `\/jobs?\//`
- * covered only the first, and the second fell through to no adapter at all —
- * the pane was on screen with its hooks populated, and the card still asked the
- * user for a name it could have read.
+ *   /job/<id>                        the standalone posting
+ *   /jobs/<location>                 a location search
+ *   /<keywords>-jobs/<location>      a keyword search
+ *   /<Company>-jobs                  a company's job list
+ *
+ * The last three all render the same split-view pane. All three were missed at
+ * some point, because `\/jobs?\//` demands a slash *straight* after `job`/`jobs`,
+ * and none of them has one: a keyword or company slug puts `-jobs` there instead.
+ * The cost of the gap is always the same — pane on screen with its hooks
+ * populated, and the card asking the user for a name it could have read.
  */
-export const POSTING_PATH = /\/job\/|\/jobs\/|-jobs$/;
+export const POSTING_PATH = /\/job\/|\/jobs\/|-jobs(\/|$)/;
 
 export function match(url) {
   // `/jobs/…` and `/<Company>-jobs` as well as `/job/…` — all three serve a posting.

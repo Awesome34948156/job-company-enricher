@@ -116,15 +116,18 @@ all(['2026', '30', '', ' ', '12345', '$'], (s) => !isPlausibleCompanyName(s), 'j
 
 // ---------- which paths serve a posting ----------
 //
-// `/jobs/` has a trailing slash and the company job list is a slug ending in
-// `-jobs` with none, so one `\/jobs?\//` covered the first and missed the second
-// entirely. The pane was on screen with its hooks populated and the card still
-// asked for a name it could have read — confirmed against the live page.
-all(['/job/74221881', '/jobs/in-Sha-Tin-District', '/jobs/in-Sha-Tin-District/',
-     '/Advanced-Biomedical-Instrumentation-Centre-Limited-jobs'],
+// Four shapes, because `\/jobs?\//` demands a slash *straight* after `job`/`jobs`
+// and a keyword or company slug puts `-jobs` there instead. Each of the last two
+// was found the same way: pane on screen, hooks populated, card asking the user
+// for a name it could have read.
+all(['/job/74221881',                                  // standalone posting
+     '/jobs/in-Sha-Tin-District',                      // location search
+     '/jobs/in-Sha-Tin-District/',
+     '/data-centre-jobs/in-Sha-Tin-District',          // keyword search
+     '/Advanced-Biomedical-Instrumentation-Centre-Limited-jobs'], // company list
     (p) => POSTING_PATH.test(p), 'path serves a posting');
 all(['/', '/jobs', '/job', '/companies/Advanced-Biomedical', '/career-advice',
-     '/Advanced-Biomedical-jobs-old'],
+     '/Advanced-Biomedical-jobs-old', '/data-centre-jobs-old/in-Sha-Tin-District'],
     (p) => !POSTING_PATH.test(p), 'path does not serve a posting');
 
 // ---------- title reliability by URL shape ----------
