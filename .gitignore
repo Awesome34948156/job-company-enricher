@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies / build output
+node_modules/
+dist/
+*.zip
+
+# Local secrets — API keys are stored in chrome.storage.local at runtime,
+# never here, but keep the usual suspects out of the repo anyway.
+.env
+.env.*
+*.pem

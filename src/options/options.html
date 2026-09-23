@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Job Company Enricher — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header>
+    <h1>Job Company Enricher</h1>
+    <p class="sub">Company enrichment on job postings — HK listing status, size, reputation.</p>
+  </header>
+
+  <main>
+    <!-- ------------------------------------------------------------ keys -->
+    <section>
+      <h2>API keys</h2>
+      <p class="note">
+        A lookup costs one DeepSeek call plus three Serper queries (five in deep mode).
+        The Serper free tier is 2,500 queries, so roughly 830 lookups.
+      </p>
+
+      <label for="serperKey">Serper API key</label>
+      <div class="row">
+        <input id="serperKey" type="password" placeholder="from serper.dev" autocomplete="off" spellcheck="false">
+        <button type="button" class="reveal" data-for="serperKey">Show</button>
+      </div>
+
+      <label for="deepseekKey">DeepSeek API key</label>
+      <div class="row">
+        <input id="deepseekKey" type="password" placeholder="from platform.deepseek.com" autocomplete="off" spellcheck="false">
+        <button type="button" class="reveal" data-for="deepseekKey">Show</button>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label for="deepseekModel">DeepSeek model</label>
+          <input id="deepseekModel" type="text" placeholder="deepseek-flash" spellcheck="false">
+        </div>
+        <div>
+          <label for="deepseekBase">DeepSeek base URL</label>
+          <input id="deepseekBase" type="text" placeholder="https://api.deepseek.com" spellcheck="false">
+        </div>
+      </div>
+      <p class="hint">The base URL is editable so a proxy can be slotted in later.</p>
+
+      <div class="actions">
+        <button type="button" id="save">Save</button>
+        <button type="button" id="test">Test keys</button>
+        <span id="testOut" class="out" role="status"></span>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- behaviour -->
+    <section>
+      <h2>Behaviour</h2>
+      <label class="check">
+        <input id="autoTrigger" type="checkbox">
+        Look up companies automatically when a job posting loads
+      </label>
+      <label class="check">
+        <input id="deepMode" type="checkbox">
+        Deep mode — also run a news search for layoffs and lawsuits (2 extra Serper queries)
+      </label>
+
+      <label for="timeoutMs">Request timeout (ms)</label>
+      <input id="timeoutMs" type="number" min="5000" max="120000" step="1000">
+    </section>
+
+    <!-- ------------------------------------------------------------ cache -->
+    <section>
+      <h2>Cache</h2>
+      <p class="note">
+        Listing codes and dates are immutable, so they're cached for a year. But
+        “not listed” is only cached for 14 days — a company can IPO later.
+      </p>
+
+      <div class="grid3">
+        <div>
+          <label for="ttlProfileDays">Profile TTL (days)</label>
+          <input id="ttlProfileDays" type="number" min="1" max="90">
+        </div>
+        <div>
+          <label for="ttlReputationDays">Reputation TTL (days)</label>
+          <input id="ttlReputationDays" type="number" min="1" max="90">
+        </div>
+        <div>
+          <label for="ttlListingDays">Listed-company TTL (days)</label>
+          <input id="ttlListingDays" type="number" min="1" max="3650">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="refreshRecords">Refresh list</button>
+        <button type="button" id="clearCache" class="danger">Clear cache</button>
+        <span id="cacheOut" class="out" role="status"></span>
+      </div>
+      <p class="hint" id="cacheStats"></p>
+
+      <input id="recordFilter" type="search" placeholder="Filter cached companies…">
+      <div class="tablewrap">
+        <table id="records">
+          <thead>
+            <tr><th>Company</th><th>Age</th><th>Hits</th><th>Stale groups</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------- limits -->
+    <section>
+      <h2>Limits</h2>
+      <p class="hint">Usage today, against the daily budget. Counters reset at local midnight.</p>
+      <p class="hint" id="usage"></p>
+    </section>
+
+    <!-- ---------------------------------------------------------- dataset -->
+    <section>
+      <h2>HKEX dataset</h2>
+      <p class="note">
+        Used to verify a proposed stock code against the exchange's own name for
+        that code. It carries codes and names only — no listing dates or boards —
+        so those are always shown only when an HKEX source is cited.
+      </p>
+      <label for="datasetUrl">Dataset URL</label>
+      <input id="datasetUrl" type="text" spellcheck="false">
+      <div class="actions">
+        <button type="button" id="refreshDataset">Refresh now</button>
+        <span id="datasetOut" class="out" role="status"></span>
+      </div>
+      <p class="hint" id="datasetStatus"></p>
+    </section>
+
+    <!-- ----------------------------------------------------- diagnostics -->
+    <section>
+      <h2>Diagnostics</h2>
+      <div class="actions">
+        <button type="button" id="loadErrors">Load recent errors</button>
+        <button type="button" id="exportDiag">Export diagnostics</button>
+        <span id="diagOut" class="out" role="status"></span>
+      </div>
+      <div id="errors" class="errors"></div>
+    </section>
+
+    <!-- -------------------------------------------------------- security -->
+    <section class="security">
+      <h2>Security</h2>
+      <p>
+        API keys are stored <b>unencrypted in this browser profile</b>. Any extension
+        or person with access to this profile can read them. This extension is
+        designed for personal, local use.
+      </p>
+      <p>
+        Publishing it in this form to the Chrome Web Store would expose your keys to
+        anyone who installs it. A public release requires a backend proxy that holds
+        the keys server-side and authenticates users — this is not something that can
+        be fixed client-side, since a key shipped to a client is a key given away.
+      </p>
+      <p>
+        Keys are stored in <code>chrome.storage.local</code> and never in
+        <code>chrome.storage.sync</code>, so they are not replicated to other Chrome
+        profiles signed into the same account.
+      </p>
+      <p>
+        The company name and job title you view <b>do</b> leave your browser — they are
+        sent to Serper and DeepSeek. That is the unavoidable cost of the feature.
+      </p>
+      <label class="check">
+        <input id="securityAck" type="checkbox">
+        I understand, and I'm using this locally for myself
+      </label>
+    </section>
+  </main>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>

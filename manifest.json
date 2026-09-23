@@ -1,0 +1,74 @@
+{
+  "manifest_version": 3,
+  "name": "Job Company Enricher",
+  "version": "0.1.0",
+  "description": "Shows company enrichment — HK listing status, size, reputation — on job postings.",
+  "minimum_chrome_version": "116",
+
+  "permissions": ["storage", "alarms", "unlimitedStorage"],
+
+  "host_permissions": [
+    "https://api.deepseek.com/*",
+    "https://google.serper.dev/*",
+    "https://raw.githubusercontent.com/*",
+    "https://query1.finance.yahoo.com/*"
+  ],
+
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://*.indeed.com/*",
+        "https://*.jobsdb.com/*",
+        "https://*.glassdoor.com/*",
+        "https://*.glassdoor.com.hk/*",
+        "https://*.glassdoor.co.uk/*"
+      ],
+      "js": ["src/content/bootstrap.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/main.js",
+        "src/content/nav.js",
+        "src/content/port.js",
+        "src/content/extract/*.js",
+        "src/content/extract/adapters/*.js",
+        "src/content/ui/*.js",
+        "src/shared/*.js"
+      ],
+      "matches": [
+        "https://*.linkedin.com/*",
+        "https://*.indeed.com/*",
+        "https://*.jobsdb.com/*",
+        "https://*.glassdoor.com/*",
+        "https://*.glassdoor.com.hk/*",
+        "https://*.glassdoor.co.uk/*"
+      ],
+      "use_dynamic_url": false
+    }
+  ],
+
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+
+  "action": { "default_title": "Company Enricher — open settings" },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
